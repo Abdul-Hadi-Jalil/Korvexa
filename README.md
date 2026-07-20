@@ -14,8 +14,8 @@ into real multi-user workspaces.
 Building phase by phase. Each phase's acceptance tests must be green before
 the next begins.
 
-- [x] **Phase 0** — Scaffolding
-- [ ] Phase 1 — Core MVP (single user)
+- [x] Phase 0 — Scaffolding
+- [x] **Phase 1** — Core MVP (single user)
 - [ ] Phase 2 — Depth & polish
 - [ ] Phase 3 — Teams & auth
 - [ ] Phase 4 — Hardening & ship
@@ -76,8 +76,32 @@ flutter run -d chrome                     # web/desktop default API base URL
 flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000   # Android emulator
 ```
 
-`lib/config.dart` (added in Phase 1) picks a sensible default API base URL
-per platform, overridable with `--dart-define=API_BASE_URL=...`.
+`lib/config.dart` picks a sensible default API base URL per platform,
+overridable with `--dart-define=API_BASE_URL=...`.
+
+### Manual Flutter smoke test (Phase 1)
+
+Automated widget tests use a mocked HTTP client (see `test/widget_test.dart`),
+so the following talks to a *real* running backend and is worth doing by hand
+after any board/task change:
+
+1. Start the backend (`uvicorn app.main:app --reload`) and `flutter run -d chrome`.
+2. **Projects tab** loads empty, then "Create your first project" makes one
+   (key auto-derived from the name); it appears in the list with `0/0 open`.
+3. Tap the project to open its **board** (To Do / In Progress / Done columns).
+4. Use each column's `+` to add a task; it lands in that column with a
+   `KEY-1`-style label.
+5. Drag a card to another column — it moves and the counts update; reopening
+   the board (pull to refresh) shows the same state, proving the move
+   persisted server-side, not just in local UI state.
+6. Tap a card to open **task edit**: change title/status/priority/due date,
+   save, and confirm the board reflects it. Delete a task from this screen
+   and confirm it disappears from the board.
+7. Switch to the **My Tasks** tab; toggle Today / This Week / All Open and
+   confirm the due-date filtering matches what you'd expect, overdue dates
+   render in red, and each row shows its project.
+8. Kill and restart the backend process — the same workspace/project/task
+   data is still there (proves persistence, not in-memory state).
 
 ## Architecture: the "team later" seam
 
@@ -105,9 +129,12 @@ backend/
   tests/         # pytest suite
 frontend/
   lib/
-    screens/     # UI screens
-    models/      # Dart data models
-    services/    # API client
+    config.dart    # API base URL per platform
+    screens/       # UI screens
+    widgets/       # shared UI pieces (e.g. task card)
+    providers/     # ChangeNotifier state (provider package)
+    models/        # Dart data models
+    services/      # API client + per-resource services
 docker-compose.yml   # local Postgres
 ```
 

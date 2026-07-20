@@ -1,36 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
+
+import 'providers/projects_provider.dart';
+import 'providers/upcoming_provider.dart';
+import 'screens/home_shell.dart';
+import 'services/api_client.dart';
+import 'services/me_service.dart';
+import 'services/projects_service.dart';
 
 void main() {
   runApp(const KorvexaApp());
 }
 
 class KorvexaApp extends StatelessWidget {
-  const KorvexaApp({super.key});
+  /// Overridable for widget tests so they never hit the real network.
+  final http.Client? httpClient;
+
+  const KorvexaApp({super.key, this.httpClient});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Korvexa',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
-        useMaterial3: true,
-      ),
-      home: const HomeScreen(),
-    );
-  }
-}
-
-/// Placeholder home screen for Phase 0. Phase 1 replaces this with the
-/// projects list (see lib/screens/projects_list_screen.dart).
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Korvexa')),
-      body: const Center(
-        child: Text('Korvexa is scaffolded. Projects are coming in Phase 1.'),
+    return MultiProvider(
+      providers: [
+        // Shared across the app; per-project state (the board) is scoped to
+        // its own screen instead -- see BoardScreen.
+        Provider<ApiClient>(create: (_) => ApiClient(httpClient: httpClient)),
+        ChangeNotifierProvider<ProjectsProvider>(
+          create: (context) => ProjectsProvider(ProjectsService(context.read<ApiClient>())),
+        ),
+        ChangeNotifierProvider<UpcomingProvider>(
+          create: (context) => UpcomingProvider(MeService(context.read<ApiClient>())),
+        ),
+      ],
+      child: MaterialApp(
+        title: 'Korvexa',
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+          useMaterial3: true,
+        ),
+        home: const HomeShell(),
       ),
     );
   }
