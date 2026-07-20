@@ -10,6 +10,7 @@ from app.db import get_session
 from app.deps import get_current_workspace
 from app.models import Project, Task, TaskStatus, Workspace
 from app.schemas.task import TaskWithProjectRead
+from app.services.serialization import labels_for_tasks, task_with_project_to_read
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -51,23 +52,8 @@ def upcoming(
 
     rows.sort(key=sort_key)
 
+    label_map = labels_for_tasks(session, [task.id for task, _ in rows])
     return [
-        TaskWithProjectRead(
-            id=task.id,
-            project_id=task.project_id,
-            number=task.number,
-            key=f"{project.key}-{task.number}",
-            title=task.title,
-            description=task.description,
-            status=task.status,
-            priority=task.priority,
-            assignee_id=task.assignee_id,
-            due_date=task.due_date,
-            position=task.position,
-            created_at=task.created_at,
-            updated_at=task.updated_at,
-            project_name=project.name,
-            project_key=project.key,
-        )
+        task_with_project_to_read(task, project, label_map.get(task.id, []))
         for task, project in rows
     ]

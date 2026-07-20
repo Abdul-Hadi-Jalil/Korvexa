@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
+import 'providers/labels_provider.dart';
 import 'providers/projects_provider.dart';
 import 'providers/upcoming_provider.dart';
 import 'screens/home_shell.dart';
 import 'services/api_client.dart';
+import 'services/labels_service.dart';
 import 'services/me_service.dart';
 import 'services/projects_service.dart';
 
@@ -31,6 +33,9 @@ class KorvexaApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<UpcomingProvider>(
           create: (context) => UpcomingProvider(MeService(context.read<ApiClient>())),
+        ),
+        ChangeNotifierProvider<LabelsProvider>(
+          create: (context) => LabelsProvider(LabelsService(context.read<ApiClient>())),
         ),
       ],
       child: MaterialApp(

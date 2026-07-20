@@ -6,6 +6,7 @@ from typing import Optional
 from sqlmodel import Field, SQLModel
 
 from app.models.task import TaskPriority, TaskStatus
+from app.schemas.label import LabelRead
 
 
 class TaskCreate(SQLModel):
@@ -15,6 +16,7 @@ class TaskCreate(SQLModel):
     priority: TaskPriority = TaskPriority.medium
     assignee_id: Optional[int] = None
     due_date: Optional[date] = None
+    label_ids: Optional[list[int]] = None
 
 
 class TaskUpdate(SQLModel):
@@ -33,6 +35,17 @@ class TaskUpdate(SQLModel):
     position: Optional[float] = None
 
 
+class TaskReorder(SQLModel):
+    """Reorder a task within its column. Either give an explicit `position`,
+    or place it relative to another task with `before_id` / `after_id`.
+    Only the moved task's row is written.
+    """
+
+    position: Optional[float] = None
+    before_id: Optional[int] = None
+    after_id: Optional[int] = None
+
+
 class TaskRead(SQLModel):
     id: int
     project_id: int
@@ -47,6 +60,7 @@ class TaskRead(SQLModel):
     position: float
     created_at: datetime
     updated_at: datetime
+    labels: list[LabelRead] = []
 
 
 class TaskWithProjectRead(TaskRead):

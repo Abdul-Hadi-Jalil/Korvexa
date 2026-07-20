@@ -17,17 +17,49 @@ class ProjectsProvider extends ChangeNotifier {
   bool get loading => _loading;
   String? get error => _error;
 
+  bool _includeArchived = false;
+  bool get includeArchived => _includeArchived;
+
   Future<void> load() async {
     _loading = true;
     _error = null;
     notifyListeners();
     try {
-      _projects = await _service.list();
+      _projects = await _service.list(includeArchived: _includeArchived);
     } on ApiException catch (e) {
       _error = e.message;
     } finally {
       _loading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> setIncludeArchived(bool value) async {
+    _includeArchived = value;
+    await load();
+  }
+
+  Future<bool> archive(int id) async {
+    try {
+      await _service.archive(id);
+      await load();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> unarchive(int id) async {
+    try {
+      await _service.unarchive(id);
+      await load();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
     }
   }
 

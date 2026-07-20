@@ -30,5 +30,15 @@ class ProjectsService {
     return Project.fromJson(data as Map<String, dynamic>);
   }
 
+  Future<Project> archive(int id) async {
+    final data = await _client.post('/projects/$id/archive', {});
+    return Project.fromJson(data as Map<String, dynamic>);
+  }
+
+  Future<Project> unarchive(int id) async {
+    final data = await _client.post('/projects/$id/unarchive', {});
+    return Project.fromJson(data as Map<String, dynamic>);
+  }
+
   Future<void> delete(int id) => _client.delete('/projects/$id');
 }

@@ -117,7 +117,22 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Projects')),
+      appBar: AppBar(
+        title: const Text('Projects'),
+        actions: [
+          Consumer<ProjectsProvider>(
+            builder: (context, provider, _) => Row(
+              children: [
+                const Text('Archived'),
+                Switch(
+                  value: provider.includeArchived,
+                  onChanged: provider.setIncludeArchived,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
       body: Consumer<ProjectsProvider>(
         builder: (context, provider, _) {
           if (provider.loading && provider.projects.isEmpty) {
@@ -148,10 +163,28 @@ class _ProjectsListScreenState extends State<ProjectsListScreen> {
                 return ListTile(
                   leading: CircleAvatar(child: Text(project.key.substring(0, 1))),
                   title: Text(project.name),
-                  subtitle: Text('${project.key} · ${project.openTasks}/${project.totalTasks} open'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () => _confirmDelete(project),
+                  subtitle: Text(
+                    '${project.key} · ${project.openTasks}/${project.totalTasks} open'
+                    '${project.archived ? ' · archived' : ''}',
+                  ),
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'archive':
+                          context.read<ProjectsProvider>().archive(project.id);
+                        case 'unarchive':
+                          context.read<ProjectsProvider>().unarchive(project.id);
+                        case 'delete':
+                          _confirmDelete(project);
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      if (project.archived)
+                        const PopupMenuItem(value: 'unarchive', child: Text('Unarchive'))
+                      else
+                        const PopupMenuItem(value: 'archive', child: Text('Archive')),
+                      const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                    ],
                   ),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => BoardScreen(project: project)),

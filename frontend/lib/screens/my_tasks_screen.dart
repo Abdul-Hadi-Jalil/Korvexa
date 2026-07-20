@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../models/task.dart';
 import '../providers/upcoming_provider.dart';
 import '../services/me_service.dart';
-import 'task_edit_screen.dart';
+import 'task_detail_screen.dart';
 
 class MyTasksScreen extends StatefulWidget {
   const MyTasksScreen({super.key});
@@ -82,14 +82,12 @@ class _MyTasksScreenState extends State<MyTasksScreen> {
                                         ),
                                   leading: _PriorityDot(priority: task.priority),
                                   onTap: () async {
-                                    final changed = await Navigator.of(context).push<bool>(
+                                    await Navigator.of(context).push(
                                       MaterialPageRoute(
-                                        builder: (_) => TaskEditScreen(taskId: task.id),
+                                        builder: (_) => TaskDetailScreen(taskId: task.id),
                                       ),
                                     );
-                                    if (changed == true) {
-                                      await provider.load();
-                                    }
+                                    await provider.load();
                                   },
                                 );
                               },

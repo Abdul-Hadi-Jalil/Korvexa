@@ -113,6 +113,34 @@ def update_project(
     return project_to_read(session, project)
 
 
+@router.post("/{project_id}/archive", response_model=ProjectRead)
+def archive_project(
+    project_id: int,
+    session: Session = Depends(get_session),
+    workspace: Workspace = Depends(get_current_workspace),
+) -> ProjectRead:
+    project = get_project_or_404(session, workspace, project_id)
+    project.archived = True
+    session.add(project)
+    session.commit()
+    session.refresh(project)
+    return project_to_read(session, project)
+
+
+@router.post("/{project_id}/unarchive", response_model=ProjectRead)
+def unarchive_project(
+    project_id: int,
+    session: Session = Depends(get_session),
+    workspace: Workspace = Depends(get_current_workspace),
+) -> ProjectRead:
+    project = get_project_or_404(session, workspace, project_id)
+    project.archived = False
+    session.add(project)
+    session.commit()
+    session.refresh(project)
+    return project_to_read(session, project)
+
+
 @router.delete("/{project_id}", status_code=204)
 def delete_project(
     project_id: int,

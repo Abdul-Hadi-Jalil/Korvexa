@@ -1,3 +1,7 @@
+import 'label.dart';
+
+export 'label.dart';
+
 /// Task status values, matching the backend's `TaskStatus` enum.
 class TaskStatus {
   static const todo = 'todo';
@@ -44,6 +48,7 @@ class Task {
   final double position;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<Label> labels;
   // Only present on endpoints that join across projects (e.g. /me/upcoming).
   final String? projectName;
   final String? projectKey;
@@ -62,6 +67,7 @@ class Task {
     required this.position,
     required this.createdAt,
     required this.updatedAt,
+    this.labels = const [],
     this.projectName,
     this.projectKey,
   });
@@ -81,6 +87,9 @@ class Task {
       position: (json['position'] as num).toDouble(),
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
+      labels: ((json['labels'] as List?) ?? const [])
+          .map((e) => Label.fromJson(e as Map<String, dynamic>))
+          .toList(),
       projectName: json['project_name'] as String?,
       projectKey: json['project_key'] as String?,
     );

@@ -15,10 +15,21 @@ Building phase by phase. Each phase's acceptance tests must be green before
 the next begins.
 
 - [x] Phase 0 — Scaffolding
-- [x] **Phase 1** — Core MVP (single user)
-- [ ] Phase 2 — Depth & polish
+- [x] Phase 1 — Core MVP (single user)
+- [x] **Phase 2** — Depth & polish
 - [ ] Phase 3 — Teams & auth
 - [ ] Phase 4 — Hardening & ship
+
+### Phase 2 features
+
+- **Comments** on tasks (create/edit/delete your own; author + timestamps), paginated.
+- **Labels** (workspace-scoped): create, assign several to a task, filter the board by label.
+- **Search & filter** tasks by title/description text, status, priority, label, and due window.
+- **Reorder within a column** via fractional `position` (`POST /tasks/{id}/reorder` takes an
+  explicit `position` or `before_id`/`after_id`); moving one card writes only that card's row.
+- **Activity log** per task (created, status change, field edits), `GET /tasks/{id}/activity`.
+- **Archive/unarchive** projects; archived hidden from the default list.
+- **Pagination** (limit/offset envelope `{items,total,limit,offset}`) on task and comment lists.
 
 ## Quickstart
 
@@ -102,6 +113,21 @@ after any board/task change:
    render in red, and each row shows its project.
 8. Kill and restart the backend process — the same workspace/project/task
    data is still there (proves persistence, not in-memory state).
+
+### Manual Flutter smoke test (Phase 2)
+
+9. On the board, use the **search field** and **priority / due / label filter**
+   chips; confirm the columns narrow accordingly and "clear filters" resets them.
+10. Create a **label** via the `+ Label` chip, then open a card → **Details**
+    tab → **Edit** labels; the chip shows on the card and filters the board.
+11. **Reorder within a column**: drag a card onto another card in the same
+    column — an insertion line appears and the order persists after refresh.
+    Drag across columns onto a card to move + position in one gesture.
+12. On a card's **Details** tab, add/edit/delete **comments**; switch to the
+    **Activity** tab and confirm entries appear for creation, status changes,
+    and field edits (newest first).
+13. From the projects list, **archive** a project (long-press/menu) and confirm
+    it disappears from the default list but its data is intact when unarchived.
 
 ## Architecture: the "team later" seam
 

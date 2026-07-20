@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/task.dart';
+import 'label_chip.dart';
 
 class TaskCard extends StatelessWidget {
   final Task task;
@@ -38,6 +39,24 @@ class TaskCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(task.title, style: Theme.of(context).textTheme.bodyMedium),
+              if (task.labels.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 2,
+                  children: [
+                    for (final label in task.labels)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: labelColor(label).withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(label.name, style: const TextStyle(fontSize: 10)),
+                      ),
+                  ],
+                ),
+              ],
               if (task.dueDate != null) ...[
                 const SizedBox(height: 6),
                 Row(

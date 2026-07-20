@@ -49,6 +49,13 @@ class ApiClient {
     return _decode(response);
   }
 
+  /// `body` may be any JSON-encodable value (e.g. a bare list for
+  /// `PUT /tasks/{id}/labels`), not just a map.
+  Future<dynamic> put(String path, Object body) async {
+    final response = await _http.put(_uri(path), headers: _headers, body: jsonEncode(body));
+    return _decode(response);
+  }
+
   Future<void> delete(String path) async {
     final response = await _http.delete(_uri(path));
     _decode(response);
