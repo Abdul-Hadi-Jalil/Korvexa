@@ -1,0 +1,11 @@
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30
+sqlmodel>=0.0.22
+alembic>=1.13
+pydantic-settings>=2.4
+psycopg2-binary>=2.9
+email-validator>=2.2
+python-jose[cryptography]>=3.3
+passlib[bcrypt]>=1.7
+slowapi>=0.1.9
+python-multipart>=0.0.9
