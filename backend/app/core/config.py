@@ -33,12 +33,7 @@ class Settings(BaseSettings):
     # suite isn't dominated by password hashing.
     bcrypt_rounds: int = 12
 
-    # First-run seed (Phase 1)
-    seed_user_email: str = "owner@example.com"
-    seed_user_name: str = "Workspace Owner"
-    seed_workspace_name: str = "My Workspace"
-
-    # Rate limiting (Phase 4)
+    # Rate limiting (auth endpoints; slowapi syntax).
     rate_limit_auth: str = "10/minute"
 
     @property

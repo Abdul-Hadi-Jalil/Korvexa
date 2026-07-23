@@ -98,6 +98,33 @@ def test_cannot_read_others_notification(client, register_client):
     assert client.post(f"/notifications/{notif['id']}/read").status_code == 404
 
 
+def test_mark_all_notifications_read(client, register_client):
+    bob, project = _setup_shared_workspace(client, register_client)
+    for i in range(3):
+        task = client.post(f"/projects/{project['id']}/tasks", json={"title": f"T{i}"}).json()
+        client.patch(f"/tasks/{task['id']}", json={"assignee_id": bob["user_id"]})
+
+    assert client.get("/notifications/unread_count", headers=bob["headers"]).json()["unread"] == 3
+    resp = client.post("/notifications/read_all", headers=bob["headers"])
+    assert resp.status_code == 200
+    assert resp.json()["marked"] == 3
+    assert client.get("/notifications/unread_count", headers=bob["headers"]).json()["unread"] == 0
+
+
+def test_list_unread_only(client, register_client):
+    bob, project = _setup_shared_workspace(client, register_client)
+    t1 = client.post(f"/projects/{project['id']}/tasks", json={"title": "A"}).json()
+    t2 = client.post(f"/projects/{project['id']}/tasks", json={"title": "B"}).json()
+    client.patch(f"/tasks/{t1['id']}", json={"assignee_id": bob["user_id"]})
+    client.patch(f"/tasks/{t2['id']}", json={"assignee_id": bob["user_id"]})
+
+    notifs = client.get("/notifications", headers=bob["headers"]).json()
+    client.post(f"/notifications/{notifs[0]['id']}/read", headers=bob["headers"])
+
+    unread = client.get("/notifications", params={"unread_only": True}, headers=bob["headers"]).json()
+    assert len(unread) == 1
+
+
 def test_my_tasks_filters_by_assignee(client, register_client):
     bob, project = _setup_shared_workspace(client, register_client)
     assigned = client.post(f"/projects/{project['id']}/tasks", json={"title": "For Bob"}).json()

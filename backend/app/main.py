@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import _rate_limit_exceeded_handler
+from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
 from app.core.config import get_settings
+from app.core.errors import register_exception_handlers
+from app.core.logging import (
+    RequestContextMiddleware,
+    configure_logging,
+    request_id_ctx,
+)
 from app.core.rate_limit import limiter
 from app.routers import (
     activity,
@@ -21,12 +27,58 @@ from app.routers import (
 )
 
 settings = get_settings()
+configure_logging()
 
-app = FastAPI(title="Korvexa API", version="0.1.0")
+DESCRIPTION = """
+Korvexa — a self-hostable, Jira-style task manager.
 
-# Rate limiting (auth endpoints; see app/core/rate_limit.py).
+**Auth:** obtain tokens via `POST /auth/register` or `POST /auth/login`, then
+send `Authorization: Bearer <access_token>`. Select the active workspace with
+the `X-Workspace-Id` header (defaults to your first workspace). Refresh with
+`POST /auth/refresh`.
+
+**Errors** share one envelope: `{"detail": "...", "request_id": "..."}` (plus
+`errors` for validation failures). The `request_id` also comes back in the
+`X-Request-ID` response header and appears in server logs.
+"""
+
+app = FastAPI(
+    title="Korvexa API",
+    version="1.0.0",
+    description=DESCRIPTION,
+    openapi_tags=[
+        {"name": "auth", "description": "Registration, login, token refresh, current user."},
+        {"name": "workspaces", "description": "Workspaces, members, invites, roles."},
+        {"name": "projects", "description": "Projects (owner-only delete)."},
+        {"name": "tasks", "description": "Tasks, board, reorder, labels, assignees."},
+        {"name": "labels", "description": "Workspace-scoped labels."},
+        {"name": "comments", "description": "Task comments (@mentions notify members)."},
+        {"name": "activity", "description": "Per-task activity log."},
+        {"name": "notifications", "description": "In-app notifications."},
+        {"name": "me", "description": "Cross-project views for the current user."},
+        {"name": "health", "description": "Liveness probe."},
+    ],
+)
+
+# Observability: request id + structured access logging, then a consistent
+# error envelope for every failure mode.
+app.add_middleware(RequestContextMiddleware)
+register_exception_handlers(app)
+
+# Rate limiting for auth endpoints.
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(RateLimitExceeded)
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": f"Rate limit exceeded: {exc.detail}",
+            "request_id": request_id_ctx.get(),
+        },
+    )
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,7 +86,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
 
 app.include_router(health.router)

@@ -16,5 +16,20 @@ services:
       timeout: 5s
       retries: 10
 
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Uses the docker network hostname `db`; migrations run on start.
+      DATABASE_URL: postgresql+psycopg2://korvexa:korvexa@db:5432/korvexa
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      CORS_ORIGINS: '["*"]'
+      SEED_DEMO: ${SEED_DEMO:-false}
+    ports:
+      - "8000:8000"
+
 volumes:
   korvexa_db_data:

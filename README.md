@@ -17,8 +17,22 @@ the next begins.
 - [x] Phase 0 — Scaffolding
 - [x] Phase 1 — Core MVP (single user)
 - [x] Phase 2 — Depth & polish
-- [x] **Phase 3** — Teams & auth
-- [ ] Phase 4 — Hardening & ship
+- [x] Phase 3 — Teams & auth
+- [x] **Phase 4** — Hardening & ship
+
+### Phase 4 features
+
+- **Consistent error envelope** for every failure — `{"detail": "...",
+  "request_id": "..."}` (plus `errors` for validation), so clients and logs
+  agree.
+- **Structured logging with request IDs**: each request gets an id (honoring
+  an inbound `X-Request-ID`), returned in the `X-Request-ID` response header
+  and stamped on every log line for that request.
+- **Rate limiting** on `POST /auth/register` and `POST /auth/login`
+  (configurable via `RATE_LIMIT_AUTH`, default `10/minute`).
+- **Dockerfile + `docker-compose` (api + db)** with migrations applied on
+  container start; an optional demo seed (`python -m app.seed`, or
+  `SEED_DEMO=true`); polished OpenAPI docs at `/docs`.
 
 ### Phase 3 features
 
@@ -164,31 +178,151 @@ now serve a team. The test suite proves the isolation both ways: the Phase
 tests prove user A cannot read, write, or even confirm the existence of user
 B's workspace.
 
-## Repo layout
+## Architecture overview
+
+```
+Flutter app  ──HTTP(JSON)──▶  FastAPI
+  SessionController (tokens,          │  RequestContextMiddleware (request id + access log)
+  active workspace, secure storage)  │  exception handlers → {detail, request_id}
+  ApiClient injects:                 │  routers → deps.get_current_user / get_current_workspace
+    Authorization: Bearer <access>   │            (JWT + X-Workspace-Id → membership check)
+    X-Workspace-Id: <id>             │  SQLModel ORM
+  auto-refreshes on 401              ▼
+                              Alembic-migrated DB
+                        SQLite | Postgres | Supabase  (one DATABASE_URL)
+```
+
+- **One workspace seam.** Every data row is scoped by `workspace_id`; every
+  route resolves the active workspace through `get_current_workspace`. Swapping
+  that one dependency is what took the app from single-user (Phase 1) to
+  multi-tenant teams (Phase 3) without touching handler code.
+- **Migrations are the source of truth.** The schema is built by
+  `alembic upgrade head` in dev, tests (each test builds its own DB from the
+  migrations), and on container start — never `create_all` in the production
+  path.
+- **Database-agnostic.** Synchronous SQLAlchemy + a SQLite FK pragma and
+  Alembic batch mode keep one codebase valid on SQLite, Postgres, and Supabase.
+- **Small, composable modules.** Routers stay thin; cross-cutting logic
+  (serialization, activity, notifications, task-labels) lives in `app/services`.
+
+### Repo layout
 
 ```
 backend/
   app/
-    core/        # settings
+    core/        # settings, security (JWT/bcrypt), logging, errors, rate limit
     models/      # SQLModel table models
     schemas/     # request/response DTOs
-    routers/     # FastAPI routers
+    routers/     # FastAPI routers (auth, workspaces, projects, tasks, ...)
+    services/    # cross-cutting logic (notifications, serialization, ...)
+    utils/       # key generation, fractional-rank positions
+    deps.py      # the auth + workspace "team later" seam
+    seed.py      # demo-data seeder (python -m app.seed)
   alembic/       # migrations (source of truth for the schema)
-  tests/         # pytest suite
+  tests/         # pytest suite (162 tests)
+  Dockerfile
+  entrypoint.sh  # runs `alembic upgrade head`, then uvicorn
 frontend/
   lib/
     config.dart    # API base URL per platform
-    screens/       # UI screens
-    widgets/       # shared UI pieces (e.g. task card)
+    screens/       # UI screens (auth gate, board, task detail, members, ...)
+    widgets/       # shared UI pieces (task card, comments, activity, labels)
     providers/     # ChangeNotifier state (provider package)
     models/        # Dart data models
-    services/      # API client + per-resource services
-docker-compose.yml   # local Postgres
+    services/      # ApiClient, SessionController, per-resource services
+docker-compose.yml   # api + db
 ```
+
+## Testing & coverage
+
+```bash
+cd backend
+pytest                                  # 162 tests
+pytest --cov=app --cov-report=term-missing --cov-report=html
+```
+
+Coverage is **~92%** of `app/` (HTML report in `backend/htmlcov/`). Each test
+builds its own throwaway SQLite database from `alembic upgrade head`, so a
+broken migration fails the suite rather than being silently papered over. The
+bcrypt work factor is lowered in tests via `BCRYPT_ROUNDS` (set in
+`tests/conftest.py`) so hashing doesn't dominate the run.
+
+Frontend: `cd frontend && flutter analyze && flutter test`.
+
+## Deployment
+
+Migrations run automatically on container start (`entrypoint.sh` →
+`alembic upgrade head`), so every deploy converges the schema before serving.
+
+### Docker (self-host)
+
+```bash
+# Builds the API image and starts api + Postgres; API on :8000.
+SECRET_KEY=$(openssl rand -hex 32) docker compose up --build
+# Optionally seed demo data on first boot:
+SEED_DEMO=true SECRET_KEY=... docker compose up --build
+```
+
+For local dev where you run `uvicorn` yourself, start just the database:
+`docker compose up -d db`.
+
+### Fly.io / Railway / Render
+
+All three build the backend from `backend/Dockerfile`; set these env vars:
+
+| Var | Value |
+| --- | --- |
+| `DATABASE_URL` | `postgresql+psycopg2://…` (managed Postgres or Supabase) |
+| `SECRET_KEY` | a long random string (`openssl rand -hex 32`) |
+| `CORS_ORIGINS` | JSON array of your web app origin(s), e.g. `["https://app.example.com"]` |
+| `RATE_LIMIT_AUTH` | optional, default `10/minute` |
+
+- **Fly.io:** `fly launch --dockerfile backend/Dockerfile`, attach Postgres
+  with `fly postgres create` + `fly postgres attach`, then `fly deploy`. The
+  entrypoint runs migrations on each release.
+- **Railway:** point a service at `backend/`, add a Postgres plugin (it injects
+  `DATABASE_URL` — prefix it with `postgresql+psycopg2://`), set `SECRET_KEY`.
+- **Render:** a Web Service from `backend/Dockerfile` + a Render Postgres
+  instance; set the env vars above.
+
+### Supabase (managed Postgres)
+
+Copy the connection string from **Database → Connection string → URI**, change
+the scheme to `postgresql+psycopg2://`, and set it as `DATABASE_URL`. No code
+changes — run `alembic upgrade head` (or just deploy; the entrypoint does it).
+
+## Flutter build notes
+
+The app reads its API base URL from `--dart-define=API_BASE_URL=…` (defaults:
+`127.0.0.1:8000` on web/desktop, `10.0.2.2:8000` on the Android emulator).
+
+```bash
+cd frontend
+
+# Web
+flutter build web --release --dart-define=API_BASE_URL=https://api.example.com
+# Output in build/web/ — serve as static files (Netlify, Nginx, Cloudflare Pages).
+# Note: flutter_secure_storage_web uses dart:js_util, so the default JS build
+# is used (not --wasm).
+
+# Windows desktop (native target)
+flutter build windows --release --dart-define=API_BASE_URL=https://api.example.com
+
+# Android
+flutter build apk --release --dart-define=API_BASE_URL=https://api.example.com
+```
+
+## Demo credentials
+
+After `python -m app.seed` (or `SEED_DEMO=true`):
+
+- Owner: `demo@korvexa.app` / `demo-password-123`
+- Member: `teammate@korvexa.app` / `demo-password-123`
 
 ## Contributing / working agreement
 
-See the commit history — one commit per phase, e.g. `feat(phase-1): core MVP`.
-Every backend endpoint has automated tests covering the happy path and
-failure cases (validation, not-found, ownership). Migrations, not
-`create_all`, are the source of truth for the schema in the production path.
+One commit per phase (see `git log`: `feat(phase-0)` … `feat(phase-4)`). Every
+backend endpoint has automated tests covering the happy path and failure cases
+(validation, not-found, ownership/permission). Migrations, not `create_all`,
+are the source of truth for the schema in the production path. Multi-tenant
+isolation and role permissions are proven by tests.
