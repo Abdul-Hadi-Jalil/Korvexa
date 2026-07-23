@@ -8,11 +8,12 @@ from sqlmodel import Session, func, or_, select
 
 from app.db import get_session
 from app.deps import get_current_user, get_current_workspace
-from app.models import Label, Project, Task, TaskLabel, TaskStatus, User, Workspace
+from app.models import Label, Membership, Project, Task, TaskLabel, TaskStatus, User, Workspace
 from app.routers.projects import get_project_or_404
 from app.schemas.pagination import Page
 from app.schemas.task import TaskCreate, TaskRead, TaskReorder, TaskUpdate
 from app.services.activity import record_activity
+from app.services.notifications import notify_assignment
 from app.services.serialization import task_to_read, tasks_to_reads
 from app.services.task_labels import set_task_labels
 from app.utils.position import next_position, position_between
@@ -39,6 +40,19 @@ def get_task_or_404(session: Session, workspace: Workspace, task_id: int) -> tup
 
 def _serialize(session: Session, task: Task, project: Project) -> TaskRead:
     return tasks_to_reads(session, [task], project)[0]
+
+
+def _validate_assignee(session: Session, workspace: Workspace, assignee_id: Optional[int]) -> None:
+    """An assignee must be a member of the task's workspace (tenant safety)."""
+    if assignee_id is None:
+        return
+    membership = session.exec(
+        select(Membership).where(
+            Membership.workspace_id == workspace.id, Membership.user_id == assignee_id
+        )
+    ).first()
+    if membership is None:
+        raise HTTPException(status_code=400, detail="Assignee is not a member of this workspace")
 
 
 @router.get("/projects/{project_id}/tasks", response_model=Page[TaskRead])
@@ -127,6 +141,7 @@ def create_task(
     user: User = Depends(get_current_user),
 ) -> TaskRead:
     project = get_project_or_404(session, workspace, project_id)
+    _validate_assignee(session, workspace, payload.assignee_id)
 
     project.task_counter += 1
     number = project.task_counter
@@ -156,6 +171,15 @@ def create_task(
         set_task_labels(session, workspace, task.id, payload.label_ids)
 
     record_activity(session, task_id=task.id, action="created", actor_id=user.id)
+    if payload.assignee_id is not None:
+        notify_assignment(
+            session,
+            workspace_id=workspace.id,
+            task_id=task.id,
+            task_title=task.title,
+            assignee_id=payload.assignee_id,
+            actor=user,
+        )
 
     session.commit()
     session.refresh(task)
@@ -182,6 +206,9 @@ def update_task(
 ) -> TaskRead:
     task, project = get_task_or_404(session, workspace, task_id)
     data = payload.model_dump(exclude_unset=True)
+
+    if "assignee_id" in data:
+        _validate_assignee(session, workspace, data["assignee_id"])
 
     if "status" in data:
         new_status = data.pop("status").value
@@ -212,6 +239,7 @@ def update_task(
     if "position" in data:
         task.position = data.pop("position")
 
+    assignee_changed_to: Optional[int] = None
     for field, value in data.items():
         old = getattr(task, field)
         if old != value and field in _TRACKED_FIELDS:
@@ -224,7 +252,19 @@ def update_task(
                 new_value=value,
                 actor_id=user.id,
             )
+            if field == "assignee_id" and value is not None:
+                assignee_changed_to = value
         setattr(task, field, value)
+
+    if assignee_changed_to is not None:
+        notify_assignment(
+            session,
+            workspace_id=workspace.id,
+            task_id=task.id,
+            task_title=task.title,
+            assignee_id=assignee_changed_to,
+            actor=user,
+        )
 
     task.updated_at = _utcnow()
     session.add(task)

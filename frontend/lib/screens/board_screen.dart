@@ -6,7 +6,9 @@ import '../models/task.dart';
 import '../providers/board_provider.dart';
 import '../providers/labels_provider.dart';
 import '../services/api_client.dart';
+import '../services/session.dart';
 import '../services/tasks_service.dart';
+import '../services/workspaces_service.dart';
 import '../widgets/task_card.dart';
 import 'task_detail_screen.dart';
 
@@ -35,6 +37,7 @@ class _BoardView extends StatefulWidget {
 
 class _BoardViewState extends State<_BoardView> {
   final _searchController = TextEditingController();
+  Map<int, String> _assigneeNames = {};
 
   static const _columnTitles = {
     TaskStatus.todo: 'To Do',
@@ -47,7 +50,21 @@ class _BoardViewState extends State<_BoardView> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<LabelsProvider>().load();
+      _loadMembers();
     });
+  }
+
+  Future<void> _loadMembers() async {
+    final workspaceId = context.read<SessionController>().currentWorkspaceId;
+    if (workspaceId == null) return;
+    try {
+      final members = await WorkspacesService(context.read<ApiClient>()).members(workspaceId);
+      if (mounted) {
+        setState(() => _assigneeNames = {for (final m in members) m.userId: m.name});
+      }
+    } on ApiException {
+      // Non-fatal: cards just won't show an assignee name.
+    }
   }
 
   @override
@@ -108,6 +125,7 @@ class _BoardViewState extends State<_BoardView> {
                                     status: status,
                                     title: _columnTitles[status]!,
                                     tasks: provider.columns[status] ?? const [],
+                                    assigneeNames: _assigneeNames,
                                     onAddTask: () => _promptNewTask(context, status),
                                     onOpenTask: (task) => _openTask(context, task),
                                   ),
@@ -276,6 +294,7 @@ class _BoardColumn extends StatelessWidget {
   final String status;
   final String title;
   final List<Task> tasks;
+  final Map<int, String> assigneeNames;
   final VoidCallback onAddTask;
   final void Function(Task) onOpenTask;
 
@@ -283,6 +302,7 @@ class _BoardColumn extends StatelessWidget {
     required this.status,
     required this.title,
     required this.tasks,
+    required this.assigneeNames,
     required this.onAddTask,
     required this.onOpenTask,
   });
@@ -323,6 +343,7 @@ class _BoardColumn extends StatelessWidget {
                   itemCount: tasks.length,
                   itemBuilder: (context, index) => _DraggableCard(
                     task: tasks[index],
+                    assigneeName: assigneeNames[tasks[index].assigneeId],
                     onOpen: () => onOpenTask(tasks[index]),
                   ),
                 ),
@@ -340,9 +361,10 @@ class _BoardColumn extends StatelessWidget {
 /// column, or move-across-columns-and-position).
 class _DraggableCard extends StatelessWidget {
   final Task task;
+  final String? assigneeName;
   final VoidCallback onOpen;
 
-  const _DraggableCard({required this.task, required this.onOpen});
+  const _DraggableCard({required this.task, required this.assigneeName, required this.onOpen});
 
   @override
   Widget build(BuildContext context) {
@@ -356,10 +378,11 @@ class _DraggableCard extends StatelessWidget {
           feedback: Material(
             elevation: 4,
             borderRadius: BorderRadius.circular(8),
-            child: SizedBox(width: 240, child: TaskCard(task: task)),
+            child: SizedBox(width: 240, child: TaskCard(task: task, assigneeName: assigneeName)),
           ),
-          childWhenDragging: Opacity(opacity: 0.3, child: TaskCard(task: task)),
-          child: TaskCard(task: task, onTap: onOpen),
+          childWhenDragging:
+              Opacity(opacity: 0.3, child: TaskCard(task: task, assigneeName: assigneeName)),
+          child: TaskCard(task: task, assigneeName: assigneeName, onTap: onOpen),
         );
         if (candidateData.isEmpty) return card;
         // Show an insertion indicator above the hovered card.

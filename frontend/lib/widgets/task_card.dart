@@ -6,8 +6,9 @@ import 'label_chip.dart';
 class TaskCard extends StatelessWidget {
   final Task task;
   final VoidCallback? onTap;
+  final String? assigneeName;
 
-  const TaskCard({super.key, required this.task, this.onTap});
+  const TaskCard({super.key, required this.task, this.onTap, this.assigneeName});
 
   Color _priorityColor(BuildContext context) => switch (task.priority) {
         TaskPriority.high => Colors.red.shade400,
@@ -72,6 +73,22 @@ class TaskCard extends StatelessWidget {
                         fontWeight: task.isOverdue ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
+                  ],
+                ),
+              ],
+              if (assigneeName != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 9,
+                      child: Text(
+                        assigneeName!.isEmpty ? '?' : assigneeName!.substring(0, 1).toUpperCase(),
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(assigneeName!, style: Theme.of(context).textTheme.labelSmall),
                   ],
                 ),
               ],

@@ -10,6 +10,7 @@ from app.deps import get_current_user, get_current_workspace
 from app.models import Comment, Project, Task, User, Workspace
 from app.schemas.comment import CommentCreate, CommentRead, CommentUpdate
 from app.schemas.pagination import Page
+from app.services.notifications import notify_mentions
 
 router = APIRouter(tags=["comments"])
 
@@ -87,6 +88,15 @@ def create_comment(
     _get_task_or_404(session, workspace, task_id)
     comment = Comment(task_id=task_id, author_id=user.id, body=payload.body)
     session.add(comment)
+    session.flush()  # need comment.id for mention notifications
+    notify_mentions(
+        session,
+        workspace_id=workspace.id,
+        task_id=task_id,
+        comment_id=comment.id,
+        body=payload.body,
+        actor=user,
+    )
     session.commit()
     session.refresh(comment)
     return _to_read(comment, user.name)

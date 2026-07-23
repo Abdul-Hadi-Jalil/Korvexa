@@ -3,11 +3,14 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/task.dart';
+import '../models/workspace.dart';
 import '../providers/labels_provider.dart';
 import '../services/activity_service.dart';
 import '../services/api_client.dart';
 import '../services/comments_service.dart';
+import '../services/session.dart';
 import '../services/tasks_service.dart';
+import '../services/workspaces_service.dart';
 import '../widgets/activity_timeline.dart';
 import '../widgets/comments_section.dart';
 import '../widgets/label_chip.dart';
@@ -39,13 +42,27 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   String _priority = TaskPriority.medium;
   DateTime? _dueDate;
   List<Label> _labels = [];
+  int? _assigneeId;
+  List<Member> _members = [];
 
   @override
   void initState() {
     super.initState();
     _tasks = TasksService(context.read<ApiClient>());
     WidgetsBinding.instance.addPostFrameCallback((_) => context.read<LabelsProvider>().load());
+    _loadMembers();
     _load();
+  }
+
+  Future<void> _loadMembers() async {
+    final workspaceId = context.read<SessionController>().currentWorkspaceId;
+    if (workspaceId == null) return;
+    try {
+      final members = await WorkspacesService(context.read<ApiClient>()).members(workspaceId);
+      if (mounted) setState(() => _members = members);
+    } on ApiException {
+      // Non-fatal: the assignee dropdown just won't have options.
+    }
   }
 
   @override
@@ -67,6 +84,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         _priority = task.priority;
         _dueDate = task.dueDate;
         _labels = task.labels;
+        _assigneeId = task.assigneeId;
       });
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -86,6 +104,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         'status': _status,
         'priority': _priority,
         'due_date': _dueDate == null ? null : _dateFormat.format(_dueDate!),
+        'assignee_id': _assigneeId,
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved')));
@@ -215,6 +234,18 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                 .map((p) => DropdownMenuItem(value: p, child: Text(TaskPriority.label(p))))
                 .toList(),
             onChanged: (v) => setState(() => _priority = v!),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<int?>(
+            initialValue: _assigneeId,
+            decoration: const InputDecoration(labelText: 'Assignee'),
+            items: [
+              const DropdownMenuItem<int?>(value: null, child: Text('Unassigned')),
+              ..._members.map(
+                (m) => DropdownMenuItem<int?>(value: m.userId, child: Text(m.name)),
+              ),
+            ],
+            onChanged: (value) => setState(() => _assigneeId = value),
           ),
           const SizedBox(height: 16),
           Row(

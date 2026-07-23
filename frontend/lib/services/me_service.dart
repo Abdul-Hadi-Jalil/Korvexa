@@ -13,8 +13,11 @@ class MeService {
 
   MeService(this._client);
 
-  Future<List<Task>> upcoming(String window) async {
-    final data = await _client.get('/me/upcoming', query: {'window': window}) as List;
+  Future<List<Task>> upcoming(String window, {bool mine = false}) async {
+    final data = await _client.get(
+      '/me/upcoming',
+      query: {'window': window, 'mine': mine},
+    ) as List;
     return data.map((e) => Task.fromJson(e as Map<String, dynamic>)).toList();
   }
 }

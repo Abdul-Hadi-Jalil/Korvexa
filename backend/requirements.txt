@@ -6,6 +6,9 @@ pydantic-settings>=2.4
 psycopg2-binary>=2.9
 email-validator>=2.2
 python-jose[cryptography]>=3.3
-passlib[bcrypt]>=1.7
+# bcrypt used directly: passlib 1.7.x's bcrypt backend is broken against
+# bcrypt >= 4.1 (its version-probe passes a >72-byte test password, which
+# modern bcrypt rejects). Same algorithm, no passlib shim.
+bcrypt>=4.1
 slowapi>=0.1.9
 python-multipart>=0.0.9

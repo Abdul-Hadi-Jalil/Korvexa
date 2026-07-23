@@ -16,9 +16,26 @@ the next begins.
 
 - [x] Phase 0 — Scaffolding
 - [x] Phase 1 — Core MVP (single user)
-- [x] **Phase 2** — Depth & polish
-- [ ] Phase 3 — Teams & auth
+- [x] Phase 2 — Depth & polish
+- [x] **Phase 3** — Teams & auth
 - [ ] Phase 4 — Hardening & ship
+
+### Phase 3 features
+
+- **Real auth:** register / login / `/auth/me`, JWT access + refresh tokens,
+  bcrypt password hashing. `get_current_workspace` now resolves the acting
+  user from the bearer token and the active workspace from the
+  `X-Workspace-Id` header, enforcing membership on every route.
+- **Multiple workspaces per user** with a switcher; **invite by email** →
+  membership with a role (a passwordless placeholder account is created for
+  unknown emails and claimed on registration).
+- **Role enforcement:** only an `owner` can delete a project or add/remove/
+  re-role members.
+- **Assignees:** assign tasks to workspace members (validated against
+  membership); "My Tasks" can filter to `assignee = me`; the assignee shows
+  on cards.
+- **In-app notifications** on assignment and on `@mention` in a comment, with
+  unread counts and mark-read; email delivery is a logged stub.
 
 ### Phase 2 features
 
@@ -131,16 +148,21 @@ after any board/task change:
 
 ## Architecture: the "team later" seam
 
-Every table that holds user data is already scoped by `workspace_id`, and a
-`memberships` table already models "which users belong to which workspace
-with which role" — even though Phase 1 only ever creates one user, one
-workspace, and one membership row (seeded on first run). All Phase 1–2 routes
-resolve the current workspace through a single dependency,
-`get_current_workspace`. Phase 3 swaps that dependency's implementation to
-resolve the workspace from a real JWT + membership check instead of "the only
-workspace that exists" — no route code, no schema changes. That single seam
-is what lets the same data model support one user on day one and a small team
-later.
+Every table that holds user data is scoped by `workspace_id`, and a
+`memberships` table models "which users belong to which workspace with which
+role". Phase 1–2 ran single-user: one seeded user/workspace/membership, and
+every route resolved the active workspace through one dependency,
+`get_current_workspace` ("the only workspace that exists").
+
+**Phase 3 realized the seam by rewriting only that dependency** (see
+[backend/app/deps.py](backend/app/deps.py)): it now resolves the acting user
+from the JWT and the active workspace from the `X-Workspace-Id` header,
+enforcing membership. Because the dependency still returns a `Workspace`, none
+of the Phase 1–2 route code changed — the same handlers that served one user
+now serve a team. The test suite proves the isolation both ways: the Phase
+1–2 tests still pass (via an authenticated test client), and new two-user
+tests prove user A cannot read, write, or even confirm the existence of user
+B's workspace.
 
 ## Repo layout
 

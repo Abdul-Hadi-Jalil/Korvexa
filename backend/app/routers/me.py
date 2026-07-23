@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
 from app.db import get_session
-from app.deps import get_current_workspace
-from app.models import Project, Task, TaskStatus, Workspace
+from app.deps import get_current_user, get_current_workspace
+from app.models import Project, Task, TaskStatus, User, Workspace
 from app.schemas.task import TaskWithProjectRead
 from app.services.serialization import labels_for_tasks, task_with_project_to_read
 
@@ -20,14 +20,17 @@ _PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
 @router.get("/upcoming", response_model=list[TaskWithProjectRead])
 def upcoming(
     window: Literal["today", "week", "all"] = "all",
+    mine: bool = False,
     session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
     workspace: Workspace = Depends(get_current_workspace),
 ) -> list[TaskWithProjectRead]:
     """Open tasks across every project in the workspace.
 
     Always excludes `done` and always includes overdue tasks, regardless of
     window. `today`/`week` additionally require a due date within that
-    horizon; `all` returns every open task, due date or not.
+    horizon; `all` returns every open task, due date or not. `mine=true`
+    restricts to tasks assigned to the current user (the "My Tasks" view).
     """
     today = date.today()
 
@@ -36,6 +39,9 @@ def upcoming(
         .join(Project, Task.project_id == Project.id)
         .where(Project.workspace_id == workspace.id, Task.status != TaskStatus.done.value)
     )
+
+    if mine:
+        query = query.where(Task.assignee_id == user.id)
 
     if window == "today":
         query = query.where(Task.due_date.is_not(None), Task.due_date <= today)

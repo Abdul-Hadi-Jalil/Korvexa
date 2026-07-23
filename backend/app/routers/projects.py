@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, func, select
 
 from app.db import get_session
-from app.deps import get_current_workspace
-from app.models import Project, Task, TaskStatus, Workspace
+from app.deps import get_current_workspace, require_owner
+from app.models import Membership, Project, Task, TaskStatus, Workspace
 from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate
 from app.utils.keygen import derive_project_key, unique_project_key
 
@@ -146,7 +146,9 @@ def delete_project(
     project_id: int,
     session: Session = Depends(get_session),
     workspace: Workspace = Depends(get_current_workspace),
+    _owner: Membership = Depends(require_owner),
 ) -> None:
+    # Owner-only (require_owner 403s for members).
     project = get_project_or_404(session, workspace, project_id)
     session.delete(project)
     session.commit()

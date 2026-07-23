@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_minutes: int = 60 * 24 * 30
+    # bcrypt work factor; keep at 12+ in prod. Tests lower it (via env) so the
+    # suite isn't dominated by password hashing.
+    bcrypt_rounds: int = 12
 
     # First-run seed (Phase 1)
     seed_user_email: str = "owner@example.com"
