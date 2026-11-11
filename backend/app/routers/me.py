@@ -63,3 +63,34 @@ def upcoming(
         task_with_project_to_read(task, project, label_map.get(task.id, []))
         for task, project in rows
     ]
+
+
+@router.get("/calendar", response_model=list[TaskWithProjectRead])
+def calendar(
+    start: date,
+    end: date,
+    session: Session = Depends(get_session),
+    workspace: Workspace = Depends(get_current_workspace),
+) -> list[TaskWithProjectRead]:
+    """Every task in the workspace's active projects with a due date in
+    [start, end] (inclusive). Includes all statuses so the calendar shows the
+    full picture; the client differentiates done tasks visually.
+    """
+    rows = session.exec(
+        select(Task, Project)
+        .join(Project, Task.project_id == Project.id)
+        .where(
+            Project.workspace_id == workspace.id,
+            Project.archived == False,  # noqa: E712
+            Task.due_date.is_not(None),
+            Task.due_date >= start,
+            Task.due_date <= end,
+        )
+        .order_by(Task.due_date)
+    ).all()
+
+    label_map = labels_for_tasks(session, [task.id for task, _ in rows])
+    return [
+        task_with_project_to_read(task, project, label_map.get(task.id, []))
+        for task, project in rows
+    ]

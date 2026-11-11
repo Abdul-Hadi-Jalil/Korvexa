@@ -20,4 +20,16 @@ class MeService {
     ) as List;
     return data.map((e) => Task.fromJson(e as Map<String, dynamic>)).toList();
   }
+
+  /// Tasks in the active projects with a due date in [start, end] (inclusive).
+  Future<List<Task>> calendar(DateTime start, DateTime end) async {
+    final data = await _client.get('/me/calendar', query: {
+      'start': _date(start),
+      'end': _date(end),
+    }) as List;
+    return data.map((e) => Task.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  static String _date(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 }

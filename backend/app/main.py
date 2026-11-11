@@ -17,11 +17,13 @@ from app.routers import (
     activity,
     auth,
     comments,
+    dashboard,
     health,
     labels,
     me,
     notifications,
     projects,
+    search,
     tasks,
     workspaces,
 )
@@ -55,7 +57,9 @@ app = FastAPI(
         {"name": "comments", "description": "Task comments (@mentions notify members)."},
         {"name": "activity", "description": "Per-task activity log."},
         {"name": "notifications", "description": "In-app notifications."},
-        {"name": "me", "description": "Cross-project views for the current user."},
+        {"name": "dashboard", "description": "Workspace aggregate stats."},
+        {"name": "search", "description": "Workspace-wide task search."},
+        {"name": "me", "description": "Cross-project views (upcoming, calendar)."},
         {"name": "health", "description": "Liveness probe."},
     ],
 )
@@ -98,4 +102,6 @@ app.include_router(labels.router)
 app.include_router(comments.router)
 app.include_router(activity.router)
 app.include_router(notifications.router)
+app.include_router(dashboard.router)
+app.include_router(search.router)
 app.include_router(me.router)

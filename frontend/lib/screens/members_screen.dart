@@ -5,6 +5,7 @@ import '../models/workspace.dart';
 import '../services/api_client.dart';
 import '../services/session.dart';
 import '../services/workspaces_service.dart';
+import '../theme/app_colors.dart';
 
 /// Workspace members list with invite (owner-only actions guarded by the
 /// backend; the UI also hides them for non-owners).
@@ -104,20 +105,39 @@ class _MembersScreenState extends State<MembersScreen> {
       appBar: AppBar(title: const Text('Members')),
       floatingActionButton: isOwner
           ? FloatingActionButton.extended(
-              onPressed: _invite, icon: const Icon(Icons.person_add), label: const Text('Invite'))
+              onPressed: _invite,
+              icon: const Icon(Icons.person_add_alt),
+              label: const Text('Invite'),
+              backgroundColor: AppColors.lavender,
+              foregroundColor: AppColors.onLavender)
           : null,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(child: Text(_error!))
-              : ListView(
-                  children: _members.map((member) {
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: _members.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1, indent: 16, endIndent: 16),
+                  itemBuilder: (context, index) {
+                    final member = _members[index];
                     return ListTile(
-                      leading: CircleAvatar(child: Text(member.name.substring(0, 1).toUpperCase())),
+                      leading: Container(
+                        width: 38,
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(color: AppColors.accentSubtle, shape: BoxShape.circle),
+                        child: Text(member.name.substring(0, 1).toUpperCase(),
+                            style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700)),
+                      ),
                       title: Text(member.name),
-                      subtitle: Text('${member.email} · ${member.role}'),
-                      trailing: (isOwner && member.userId != myUserId)
-                          ? PopupMenuButton<String>(
+                      subtitle: Text(member.email, style: const TextStyle(color: AppColors.textMuted)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _RoleBadge(role: member.role),
+                          if (isOwner && member.userId != myUserId)
+                            PopupMenuButton<String>(
                               onSelected: (value) {
                                 switch (value) {
                                   case 'make_owner':
@@ -135,11 +155,35 @@ class _MembersScreenState extends State<MembersScreen> {
                                   const PopupMenuItem(value: 'make_member', child: Text('Make member')),
                                 const PopupMenuItem(value: 'remove', child: Text('Remove')),
                               ],
-                            )
-                          : null,
+                            ),
+                        ],
+                      ),
                     );
-                  }).toList(),
+                  },
                 ),
+    );
+  }
+}
+
+class _RoleBadge extends StatelessWidget {
+  final String role;
+  const _RoleBadge({required this.role});
+
+  @override
+  Widget build(BuildContext context) {
+    final owner = role == 'owner';
+    final color = owner ? AppColors.accent : AppColors.textMuted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        owner ? 'Owner' : 'Member',
+        style: TextStyle(color: Color.lerp(color, Colors.white, 0.2), fontSize: 11, fontWeight: FontWeight.w600),
+      ),
     );
   }
 }

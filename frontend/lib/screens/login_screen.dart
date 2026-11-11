@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/session.dart';
+import '../theme/app_colors.dart';
+import '../widgets/auth_scaffold.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -33,7 +35,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _submitting = true;
       _error = null;
     });
-    // Capture providers before any await to avoid using context across gaps.
     final auth = AuthService(context.read<ApiClient>());
     final session = context.read<SessionController>();
     try {
@@ -52,64 +53,75 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Korvexa', style: Theme.of(context).textTheme.headlineMedium),
-                  const SizedBox(height: 24),
-                  if (_error != null) ...[
-                    Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                    const SizedBox(height: 12),
-                  ],
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.email],
-                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Email is required' : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _passwordController,
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    obscureText: true,
-                    autofillHints: const [AutofillHints.password],
-                    onFieldSubmitted: (_) => _submit(),
-                    validator: (v) => (v == null || v.isEmpty) ? 'Password is required' : null,
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: _submitting ? null : _submit,
-                      child: _submitting
-                          ? const SizedBox(
-                              width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Text('Log in'),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _submitting
-                        ? null
-                        : () => Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                            ),
-                    child: const Text("Don't have an account? Register"),
-                  ),
-                ],
+    return AuthScaffold(
+      title: 'Welcome back',
+      error: _error,
+      form: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _FieldLabel('Email address'),
+            TextFormField(
+              controller: _emailController,
+              decoration: const InputDecoration(
+                hintText: 'name@company.com',
+                prefixIcon: Icon(Icons.mail_outline, size: 18),
               ),
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Email is required' : null,
             ),
-          ),
+            const SizedBox(height: 16),
+            const _FieldLabel('Password'),
+            TextFormField(
+              controller: _passwordController,
+              decoration: const InputDecoration(
+                hintText: '••••••••',
+                prefixIcon: Icon(Icons.lock_outline, size: 18),
+              ),
+              obscureText: true,
+              autofillHints: const [AutofillHints.password],
+              onFieldSubmitted: (_) => _submit(),
+              validator: (v) => (v == null || v.isEmpty) ? 'Password is required' : null,
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: _submitting ? null : _submit,
+              child: _submitting
+                  ? const SizedBox(
+                      width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text('Log in'),
+            ),
+          ],
         ),
+      ),
+      footer: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          const Text("Don't have an account? ", style: TextStyle(color: AppColors.textSecondary)),
+          GestureDetector(
+            onTap: _submitting
+                ? null
+                : () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                    ),
+            child: const Text('Register', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _FieldLabel extends StatelessWidget {
+  final String text;
+  const _FieldLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(text, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+      );
 }

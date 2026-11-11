@@ -11,6 +11,7 @@ import '../services/comments_service.dart';
 import '../services/session.dart';
 import '../services/tasks_service.dart';
 import '../services/workspaces_service.dart';
+import '../theme/app_colors.dart';
 import '../widgets/activity_timeline.dart';
 import '../widgets/comments_section.dart';
 import '../widgets/label_chip.dart';
@@ -173,9 +174,26 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(_task?.key ?? 'Task'),
+          titleSpacing: 8,
+          title: _task == null
+              ? const Text('Task')
+              : Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceHover,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(_task!.key,
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
           actions: [
-            IconButton(icon: const Icon(Icons.delete_outline), onPressed: _loading ? null : _delete),
+            IconButton(
+              tooltip: 'Delete task',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: _loading ? null : _delete,
+            ),
+            const SizedBox(width: 4),
           ],
           bottom: const TabBar(tabs: [Tab(text: 'Details'), Tab(text: 'Activity')]),
         ),
@@ -200,84 +218,57 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     return Form(
       key: _formKey,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         children: [
           if (_error != null) ...[
-            Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            const SizedBox(height: 12),
+            _errorBanner(_error!),
+            const SizedBox(height: 16),
           ],
           TextFormField(
             controller: _titleController,
-            decoration: const InputDecoration(labelText: 'Title'),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              filled: false,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+              hintText: 'Task title',
+            ),
             validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
           ),
           const SizedBox(height: 16),
           TextFormField(
             controller: _descriptionController,
-            decoration: const InputDecoration(labelText: 'Description'),
             maxLines: 4,
+            style: const TextStyle(fontSize: 14, height: 1.4),
+            decoration: const InputDecoration(hintText: 'Add a description...'),
           ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _status,
-            decoration: const InputDecoration(labelText: 'Status'),
-            items: TaskStatus.all
-                .map((s) => DropdownMenuItem(value: s, child: Text(TaskStatus.label(s))))
-                .toList(),
-            onChanged: (v) => setState(() => _status = v!),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            initialValue: _priority,
-            decoration: const InputDecoration(labelText: 'Priority'),
-            items: TaskPriority.all
-                .map((p) => DropdownMenuItem(value: p, child: Text(TaskPriority.label(p))))
-                .toList(),
-            onChanged: (v) => setState(() => _priority = v!),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<int?>(
-            initialValue: _assigneeId,
-            decoration: const InputDecoration(labelText: 'Assignee'),
-            items: [
-              const DropdownMenuItem<int?>(value: null, child: Text('Unassigned')),
-              ..._members.map(
-                (m) => DropdownMenuItem<int?>(value: m.userId, child: Text(m.name)),
-              ),
-            ],
-            onChanged: (value) => setState(() => _assigneeId = value),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Text(_dueDate == null ? 'No due date' : 'Due ${_dateFormat.format(_dueDate!)}'),
-              ),
-              TextButton(onPressed: _pickDueDate, child: const Text('Pick date')),
-              if (_dueDate != null)
-                TextButton(onPressed: () => setState(() => _dueDate = null), child: const Text('Clear')),
-            ],
-          ),
+          const SizedBox(height: 20),
+          _fieldsPanel(),
+          const SizedBox(height: 24),
+          _sectionLabel('LABELS'),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text('Labels', style: Theme.of(context).textTheme.titleSmall),
-              const Spacer(),
-              TextButton.icon(onPressed: _editLabels, icon: const Icon(Icons.edit, size: 16), label: const Text('Edit')),
+              for (final l in _labels) LabelChip(label: l),
+              _addLabelButton(),
             ],
           ),
-          if (_labels.isEmpty)
-            const Text('No labels')
-          else
-            Wrap(spacing: 6, children: [for (final l in _labels) LabelChip(label: l)]),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           FilledButton(
             onPressed: _saving ? null : _save,
             child: _saving
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Save'),
+                : const Text('Save changes'),
           ),
+          const SizedBox(height: 8),
           const Divider(height: 32),
+          Text('Comments', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
           CommentsSection(
             taskId: widget.taskId,
             service: CommentsService(context.read<ApiClient>()),
@@ -286,6 +277,179 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       ),
     );
   }
+
+  Widget _fieldsPanel() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: _statusField()),
+              const SizedBox(width: 16),
+              Expanded(child: _priorityField()),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _assigneeField()),
+              const SizedBox(width: 16),
+              Expanded(child: _dueField()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _fieldRow(IconData icon, String label, Widget control) {
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: AppColors.textMuted),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 66,
+          child: Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        ),
+        Expanded(child: Align(alignment: Alignment.centerRight, child: control)),
+      ],
+    );
+  }
+
+  Widget _statusField() => _fieldRow(
+        Icons.radio_button_unchecked,
+        'Status',
+        _compactDropdown<String>(
+          value: _status,
+          items: {for (final s in TaskStatus.all) s: TaskStatus.label(s)},
+          leadingColor: (v) => AppColors.status(v),
+          onChanged: (v) => setState(() => _status = v!),
+        ),
+      );
+
+  Widget _priorityField() => _fieldRow(
+        Icons.flag_outlined,
+        'Priority',
+        _compactDropdown<String>(
+          value: _priority,
+          items: {for (final p in TaskPriority.all) p: TaskPriority.label(p)},
+          leadingColor: (v) => AppColors.priority(v),
+          onChanged: (v) => setState(() => _priority = v!),
+        ),
+      );
+
+  Widget _assigneeField() => _fieldRow(
+        Icons.person_outline,
+        'Assignee',
+        _compactDropdown<int?>(
+          value: _assigneeId,
+          items: {null: 'Unassigned', for (final m in _members) m.userId: m.name},
+          onChanged: (v) => setState(() => _assigneeId = v),
+        ),
+      );
+
+  Widget _dueField() => _fieldRow(
+        Icons.calendar_today_outlined,
+        'Due Date',
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton(
+              onPressed: _pickDueDate,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                foregroundColor: _dueDate == null ? AppColors.textMuted : AppColors.textPrimary,
+              ),
+              child: Text(_dueDate == null ? 'None' : _dateFormat.format(_dueDate!)),
+            ),
+            if (_dueDate != null)
+              InkWell(
+                onTap: () => setState(() => _dueDate = null),
+                child: const Icon(Icons.close, size: 14, color: AppColors.textMuted),
+              ),
+          ],
+        ),
+      );
+
+  Widget _compactDropdown<T>({
+    required T value,
+    required Map<T, String> items,
+    Color Function(T)? leadingColor,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<T>(
+        value: value,
+        isDense: true,
+        isExpanded: true,
+        alignment: Alignment.centerRight,
+        icon: const Icon(Icons.keyboard_arrow_down, size: 16, color: AppColors.textMuted),
+        dropdownColor: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+        items: [
+          for (final entry in items.entries)
+            DropdownMenuItem(
+              value: entry.key,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (leadingColor != null) ...[
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(color: leadingColor(entry.key), shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Flexible(child: Text(entry.value, overflow: TextOverflow.ellipsis)),
+                ],
+              ),
+            ),
+        ],
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _sectionLabel(String text) => Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.textMuted,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+        ),
+      );
+
+  Widget _addLabelButton() => InkWell(
+        onTap: _editLabels,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: const Icon(Icons.add, size: 15, color: AppColors.textSecondary),
+        ),
+      );
+
+  Widget _errorBanner(String message) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.danger.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+        ),
+        child: Text(message, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
+      );
 }
 
 class _LabelPickerDialog extends StatefulWidget {

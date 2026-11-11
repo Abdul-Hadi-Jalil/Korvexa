@@ -26,7 +26,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // AuthGate resolves to unauthenticated -> LoginScreen.
+    expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('Log in'), findsOneWidget);
-    expect(find.text("Don't have an account? Register"), findsOneWidget);
+    expect(find.text('Register'), findsOneWidget);
   });
 }
